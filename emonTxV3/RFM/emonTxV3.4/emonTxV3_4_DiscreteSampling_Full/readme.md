@@ -37,3 +37,7 @@ this sketch has but the emonv3 on address 11 and has following configuration for
        scales =    1,1,1,1,0.01,0.1,0.1, 0.1,0.1,0.1,0.1,.01,.01,1,1,1,1
        units =     W,W,W,W,V,C,C,C,C,C,C,p,Hz,%,%,%,%
 ```
+
+Example of output :
+
+ http://emoncms.org/dashboard/view?id=30272
