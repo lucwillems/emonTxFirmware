@@ -1,6 +1,7 @@
-Discrete Sampling full
+# Discrete Sampling full
 
 this sketch add new extra data to emonhub/cms :
+
 ```
    Power ct 1..4
    Vrms
@@ -10,19 +11,24 @@ this sketch add new extra data to emonhub/cms :
    Power factor
  ```
  
- the reason for adding Frequency and Power Factor is to use this information
- for evaluation of power consumption (PF) and the overall load of the power grid
+the reason for adding Frequency and Power Factor is to use this information
+for evaluation of power consumption (PF) and the overall load of the power grid
 
- https://en.wikipedia.org/wiki/Utility_frequency
+https://en.wikipedia.org/wiki/Utility_frequency
 
- in high power load, frequence should drop below 49.5 Hz (on 50 Hz grid) , indicating
- possible higher load. in europe , freq below 49..48 Hz will cause blackout scenarios.
+in high power load, frequence should drop below 49.5 Hz (on 50 Hz grid) , indicating
+possible higher load. in europe , freq below 49..48 Hz will cause blackout scenarios.
  
- As i live in belgium , currently (16/01/2016) we have all our nuclear power plants
- running and exporting power so freq is stable around 50.0 Hz
+As i live in belgium , currently (16/01/2016) we have all our nuclear power plants
+running and exporting power so freq is stable around 50.0 Hz
  
+# installation
+ - ACAC adopter is required ! can't measure frequency without it
+ - Update emonlib (see https://github.com/lucwillems/EmonLib ) is required
+ - This sketch
+ - Update your emonhub configuration as shown below
 
-emonhub configuration:
+# emonhub configuration:
 
 this sketch has but the emonv3 on address 11 and has following configuration for emonhub:
 
@@ -37,7 +43,6 @@ this sketch has but the emonv3 on address 11 and has following configuration for
        scales =    1,1,1,1,0.01,0.1,0.1, 0.1,0.1,0.1,0.1,.01,.01,1,1,1,1
        units =     W,W,W,W,V,C,C,C,C,C,C,p,Hz,%,%,%,%
 ```
-
-Example of output :
+# Example of output :
 
  http://emoncms.org/dashboard/view?id=30272
