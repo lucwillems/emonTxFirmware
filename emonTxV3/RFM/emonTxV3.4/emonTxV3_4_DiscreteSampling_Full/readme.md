@@ -22,13 +22,14 @@ possible higher load. in europe , freq below 49..48 Hz will cause blackout scena
 As i live in belgium , currently (16/01/2016) we have all our nuclear power plants
 running and exporting power so freq is stable around 50.0 Hz
  
-# installation
+## installation
+
  - ACAC adopter is required ! can't measure frequency without it
  - Update emonlib (see https://github.com/lucwillems/EmonLib ) is required
  - This sketch
  - Update your emonhub configuration as shown below
 
-# emonhub configuration:
+## emonhub configuration:
 
 this sketch has but the emonv3 on address 11 and has following configuration for emonhub:
 
@@ -43,6 +44,6 @@ this sketch has but the emonv3 on address 11 and has following configuration for
        scales =    1,1,1,1,0.01,0.1,0.1, 0.1,0.1,0.1,0.1,.01,.01,1,1,1,1
        units =     W,W,W,W,V,C,C,C,C,C,C,p,Hz,%,%,%,%
 ```
-# Example of output :
+## Live example of power usage/Factor, Main voltage and freq of a location in belgium
 
  http://emoncms.org/dashboard/view?id=30272
