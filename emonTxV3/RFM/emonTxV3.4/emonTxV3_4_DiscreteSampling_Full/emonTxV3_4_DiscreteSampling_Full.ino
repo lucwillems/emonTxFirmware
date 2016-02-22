@@ -49,16 +49,20 @@ V1.1 - fix bug in startup Vrms calculation, startup Vrms startup calculation is 
 #define emonTxV3                                                                   // Tell emonLib this is the emonTx V3 - don't read Vcc assume Vcc = 3.3V as is always the case on emonTx V3 eliminates bandgap error and need for calibration http://harizanov.com/2013/09/thoughts-on-avr-adc-accuracy/
 #define RF69_COMPAT 1                                                              // Set to 1 if using RFM69CW or 0 is using RFM12B
 #include <JeeLib.h>                                                                      //https://github.com/jcw/jeelib - Tested with JeeLib 3/11/14
-ISR(WDT_vect) { Sleepy::watchdogEvent(); }                            // Attached JeeLib sleep function to Atmega328 watchdog -enables MCU to be put into sleep mode inbetween readings to reduce power consumption 
-
 #include "EmonLib.h"                                                                    // Include EmonLib energy monitoring library https://github.com/openenergymonitor/EmonLib
+#include <avr/wdt.h>
+
 EnergyMonitor ct1, ct2, ct3, ct4;       
 
 #include <OneWire.h>                                                  //http://www.pjrc.com/teensy/td_libs_OneWire.html
 #include <DallasTemperature.h>                                        //http://download.milesburton.com/Arduino/MaximTemperature/DallasTemperature_LATEST.zip
 
-
 const byte version = 231;         // firmware version divided by 10 e,g 16 = V1.6
+
+#define RETRY_PERIOD    10  // how soon to retry if ACK didn't come in
+#define RETRY_LIMIT     5   // maximum number of times to retry
+#define ACK_TIME        50  // number of milliseconds to wait for an ack
+#define RADIO_SYNC_MODE 2
 
 //----------------------------emonTx V3 Settings---------------------------------------------------------------------------------------------------------------
 const byte TIME_BETWEEN_READINGS = 10;            //Time between readings   
@@ -137,9 +141,14 @@ volatile byte pulseCount = 0;
 unsigned long pulsetime=0;                                    // Record time of interrupt pulse        
 void setup()
 { 
+  wdt_reset();
+  wdt_disable();
+  
   pinMode(LEDpin, OUTPUT); 
-  pinMode(DS18B20_PWR, OUTPUT); 
+  digitalWrite(LEDpin,LOW); 
+  delay(500);
 
+  pinMode(DS18B20_PWR, OUTPUT); 
   pinMode(pulse_count_pin, INPUT_PULLUP);                     // Set emonTx V3.4 interrupt pulse counting pin as input (Dig 3 / INT1)
   emontx.pulseCount=0;                                        // Make sure pulse count starts at zero
 
@@ -188,7 +197,8 @@ void setup()
   
   // Quick check to see if there is a voltage waveform present on the ACAC Voltage input
   // Check consists of calculating the RMS from 100 samples of the voltage input.
-  Sleepy::loseSomeTime(10000);            //wait for settle
+  //Sleepy::loseSomeTime(10000);            //wait for settle
+  delay(10000);
   digitalWrite(LEDpin,LOW); 
   
   // Calculate if there is an ACAC adapter on analog input 0
@@ -297,12 +307,15 @@ void setup()
   for(byte j=0;j<MaxOnewire;j++) 
       emontx.temp[j] = 3000;                             // If no temp sensors connected default to status code 3000 
                                                          // will appear as 300 once multipled by 0.1 in emonhub
+
+  //Stard HW watchdog 
+  wdt_enable(WDTO_8S);
 } //end SETUP
 
 void loop()
 {
   unsigned long start = millis();
-  
+  wdt_reset();
   if (CT1) {
       ct1.calcVI(no_of_half_wavelengths,timeout); 
       emontx.power1=ct1.realPower;
@@ -310,7 +323,7 @@ void loop()
       emontx.Vrms=ct1.Vrms*100;
       emontx.freq=ct1.Freq*100;
   }
-  
+  wdt_reset();
   if (CT2) {
       ct2.calcVI(no_of_half_wavelengths,timeout); 
       emontx.power2=ct2.realPower;
@@ -318,7 +331,7 @@ void loop()
       emontx.Vrms=ct2.Vrms*100;
       emontx.freq=ct2.Freq*100;
   }
-
+  wdt_reset();
   if (CT3) {
       ct3.calcVI(no_of_half_wavelengths,timeout); 
       emontx.power3=ct3.realPower;
@@ -326,7 +339,7 @@ void loop()
       emontx.Vrms=ct3.Vrms*100;
       emontx.freq=ct3.Freq*100;
   }
-  
+  wdt_reset();
   if (CT4) {
       ct4.calcVI(no_of_half_wavelengths,timeout); 
       emontx.power4=ct4.realPower;
@@ -335,19 +348,24 @@ void loop()
       emontx.freq=ct4.Freq*100;
   }
   
+  wdt_reset();
   if (DS18B20_STATUS==1) 
   {
     digitalWrite(DS18B20_PWR, HIGH); 
-    Sleepy::loseSomeTime(50); 
+    //Sleepy::loseSomeTime(50); 
+    delay(50);
     for(int j=0;j<numSensors;j++) 
       sensors.setResolution(allAddress[j], TEMPERATURE_PRECISION);                    // and set the a to d conversion resolution of each.
     sensors.requestTemperatures();
-    Sleepy::loseSomeTime(ASYNC_DELAY);                                                // Must wait for conversion, since we use ASYNC mode 
+    //Sleepy::loseSomeTime(ASYNC_DELAY);                                                // Must wait for conversion, since we use ASYNC mode 
+    wdt_reset();
+    delay(ASYNC_DELAY);
     for(byte j=0;j<numSensors;j++) 
       emontx.temp[j]=get_temperature(j); 
     digitalWrite(DS18B20_PWR, LOW);
   }
   
+  wdt_reset();
   if (pulseCount)                                                                     // if the ISR has counted some pulses, update the total count
   {
     cli();                                                                            // Disable interrupt just in case pulse comes in while we are updating the count
@@ -356,6 +374,7 @@ void loop()
     sei();                                                                            // Re-enable interrupts
   }
  
+  wdt_reset();
   if (debug==1) {
     Serial.print(emontx.power1); Serial.print(" ");
     Serial.print(emontx.power2); Serial.print(" ");
@@ -378,21 +397,63 @@ void loop()
     delay(50);
   } 
   
+  wdt_reset();
   digitalWrite(LEDpin, HIGH); delay(200); digitalWrite(LEDpin, LOW);        // flash LED if powered by AC
-  send_rf_data();                                                           // *SEND RF DATA* - see emontx_lib
+  send_rf_data();                                                       // *SEND RF DATA* - see emontx_lib
 
   //prevent unsigned over/under flows we limit timouts
   unsigned long runtime = min(millis() - start,(TIME_BETWEEN_READINGS*1000) - 100);
-  unsigned long sleeptime = (TIME_BETWEEN_READINGS*1000) - runtime - 100;
-  delay(sleeptime);
+  unsigned long sleeptime = (TIME_BETWEEN_READINGS*1000) - runtime;
+  if (debug==1) {
+     Serial.print("sleep ");Serial.println(sleeptime);
+  }
+  wdt_reset(); 
+  delay(sleeptime/2);
+  wdt_reset(); 
+  delay(sleeptime/2);
+  wdt_reset();
 
 }
+
+byte waitForAck() {
+  MilliTimer ackTimer;
+  while (!ackTimer.poll(ACK_TIME)) {
+    if (rf12_recvDone() && rf12_crc == 0 && rf12_hdr == (RF12_HDR_DST | RF12_HDR_CTL | nodeID))
+      return 1;
+  }
+  return 0;
+}
+
+void send_rf_data_ack()
+{
+  rf12_sleep(RF12_WAKEUP);
+  
+  for (byte i = 0; i < RETRY_LIMIT; ++i) {
+    rf12_sendNow(RF12_HDR_ACK, &emontx, sizeof emontx);
+    rf12_sendWait(RADIO_SYNC_MODE);
+    byte acked = waitForAck();
+//    rf12_sleep(RF12_SLEEP);
+
+    if (acked) {
+      Serial.print(" ack ");
+      Serial.println((int) i);
+      break;
+    }
+    
+    Serial.print("retry: ");
+    Serial.println(i);
+    delay(RETRY_PERIOD * 100);
+    wdt_reset();
+  }
+  delay(10);
+}
+
 
 void send_rf_data()
 {
   rf12_sleep(RF12_WAKEUP);                                   
   rf12_sendNow(0, &emontx, sizeof emontx);                           //send temperature data via RFM12B using new rf12_sendNow wrapper
-  rf12_sendWait(2);
+  rf12_sendWait(0);
 //  if (!ACAC) rf12_sleep(RF12_SLEEP);                             //if powred by battery then put the RF module into sleep inbetween readings 
 }
 
